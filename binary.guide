@@ -1,0 +1,19 @@
+0000 		| 0000000000000000000000000000
+^ DIRECTION   ^ NOT YET IMPLEMENTED
+
+### DIRECTION ###
+	A value between 0 and 3 (included).
+	This value specifies the direction of the cursor.
+	1000 = LEFT
+	0100 = RIGHT
+	0010 = UP
+	0001 = DOWN
+	Multiple directions can be active at the same time.
+	Example of LEFT & TOP direction: 1010
+	Example of LEFT & BOTTOM direction: 1001
+	Example of LEFT & RIGHT direction: 1100
+
+	Q: Why would you move left and right at the same time?
+	A: The server can get input from multiple sources, and they can 
+		conflict with eachother.
+

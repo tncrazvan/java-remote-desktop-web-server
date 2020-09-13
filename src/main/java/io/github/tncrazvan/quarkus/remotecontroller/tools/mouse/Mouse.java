@@ -4,54 +4,85 @@ import java.awt.AWTException;
 import java.awt.Robot;
 
 import javax.inject.Singleton;
+
+
 import java.awt.PointerInfo;
+import java.awt.Point;
 import java.awt.MouseInfo;
 
 @Singleton
 public class Mouse {
-    private PointerInfo minfo = MouseInfo.getPointerInfo();
-
+    private Mouse() {}
+    private boolean left = false;
+    private boolean right = false;
+    private boolean up = false;
+    private boolean down = false;
+    private static final byte DIRECTION_LEFT = 0x8;
+    private static final byte DIRECTION_RIGHT = 0x4;
+    private static final byte DIRECTION_UP = 0x2;
+    private static final byte DIRECTION_DOWN = 0x1;
+    private static final byte DIRECTION_NONE = 0x0;
+    public static final int STEP = 1;
     private Robot robot;
     static {
         System.setProperty("java.awt.headless", "false");
         System.out.println("#########MOUSE: Headless disabled.");
     }
-    private Mouse() {}
-    private int lastX = 0,lastY = 0;
-    private boolean movingX = false;
-    private boolean movingY = false;
-    public void move(int x, int y) throws InterruptedException {
-        if(robot == null) try {
-            robot = new Robot();
-        } catch (AWTException e) {
-            e.printStackTrace();
+
+    public void setDirection(byte direction){
+        if(direction == DIRECTION_NONE){
+            left = false;
+            right = false;
+            up = false;
+            down = false;
+        }else{
+            left    = (direction & DIRECTION_LEFT)  == DIRECTION_LEFT;
+            right   = (direction & DIRECTION_RIGHT) == DIRECTION_RIGHT;
+            up      = (direction & DIRECTION_UP)    == DIRECTION_UP;
+            down    = (direction & DIRECTION_DOWN)  == DIRECTION_DOWN;
         }
-        
-        if(robot != null){
-            boolean xleft = x < 0;
-            boolean ytop = y < 0;
-            minfo = MouseInfo.getPointerInfo();
-            lastX = (int) minfo.getLocation().getX();
-            lastY = (int) minfo.getLocation().getY();
-            x += lastX;
-            y += lastY;
-            movingX = true;
-            movingY = true;
-            
-            while(movingX || movingY){
-                lastX += xleft?(lastX > x?-1:0):(lastX < x?1:0);
-                lastY += ytop?(lastY > y?-1:0):(lastY < y?1:0);
+    }
+    private boolean watching = false;
+    public void watch() throws AWTException {
+        if(watching) return;
+        robot = new Robot();
+        watching = true;
+        new Thread(()->{
+            int deltaX = 0;
+            int deltaY = 0;
+            int lastX = 0;
+            int lastY = 0;
+            int x = 0;
+            int y = 0;
+            Point current;
+            while(watching){
 
-                    
-                robot.mouseMove(lastX,lastY);
+                if(left) 
+                    deltaX = -STEP;
+                else if(right) 
+                    deltaX = STEP;
+                else 
+                    deltaX = 0;
 
-                movingX = xleft?(lastX > x):(lastX < x);
-                movingY = ytop?(lastY > y):(lastY < y);
+                if(up) 
+                    deltaY = -STEP;
+                else if
+                    (down) deltaY = STEP;
+                else 
+                    deltaY = 0;
 
-                Thread.sleep(0, 10);
+                if(deltaX == 0 && deltaY == 0)
+                    continue;
+                
+                current = MouseInfo.getPointerInfo().getLocation();
+                x = (int) current.getX()+deltaX;
+                y = (int) current.getY()+deltaY;
+                //System.out.println("moving to "+x+","+y);
+                robot.mouseMove(x,y);
+                lastX = x;
+                lastY = y;
             }
-
-        }
+        }).start();
     }
     
 }

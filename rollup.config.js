@@ -7,7 +7,6 @@ import sveltePreprocess from 'svelte-preprocess';
 import typescript from '@rollup/plugin-typescript';
 
 const production = !process.env.ROLLUP_WATCH;
-
 function serve() {
 	let server;
 	
@@ -30,12 +29,12 @@ function serve() {
 }
 
 export default {
-	input: 'src/main.ts',
+	input: 'src/main/svelte/main.ts',
 	output: {
 		sourcemap: true,
 		format: 'iife',
 		name: 'app',
-		file: '../src/main/resources/META-INF/resources/build/bundle.js'
+		file: 'src/main/resources/META-INF/resources/build/bundle.js'
 	},
 	plugins: [
 		svelte({
@@ -59,15 +58,15 @@ export default {
 			dedupe: ['svelte']
 		}),
 		commonjs(),
-		typescript({ sourceMap: !production }),
+		typescript({ sourceMap: !production, inlineSources: !production }),
 
 		// In dev mode, call `npm run start` once
 		// the bundle has been generated
 		!production && serve(),
 
-		// Watch the `../src/main/resources/META-INF/resources` directory and refresh the
+		// Watch the `src/main/resources/META-INF/resources` directory and refresh the
 		// browser on changes when not in production
-		!production && livereload('../src/main/resources/META-INF/resources'),
+		!production && livereload('src/main/resources/META-INF/resources'),
 
 		// If we're building for production (npm run build
 		// instead of npm run dev), minify

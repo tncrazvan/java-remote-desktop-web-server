@@ -4,6 +4,11 @@ var app = (function () {
     'use strict';
 
     function noop() { }
+    function add_location(element, file, line, column, char) {
+        element.__svelte_meta = {
+            loc: { file, line, column, char }
+        };
+    }
     function run(fn) {
         return fn();
     }
@@ -22,8 +27,20 @@ var app = (function () {
     function is_empty(obj) {
         return Object.keys(obj).length === 0;
     }
+    function insert(target, node, anchor) {
+        target.insertBefore(node, anchor || null);
+    }
     function detach(node) {
         node.parentNode.removeChild(node);
+    }
+    function element(name) {
+        return document.createElement(name);
+    }
+    function attr(node, attribute, value) {
+        if (value == null)
+            node.removeAttribute(attribute);
+        else if (node.getAttribute(attribute) !== value)
+            node.setAttribute(attribute, value);
     }
     function children(element) {
         return Array.from(element.childNodes);
@@ -239,6 +256,21 @@ var app = (function () {
     function dispatch_dev(type, detail) {
         document.dispatchEvent(custom_event(type, Object.assign({ version: '3.25.0' }, detail)));
     }
+    function insert_dev(target, node, anchor) {
+        dispatch_dev("SvelteDOMInsert", { target, node, anchor });
+        insert(target, node, anchor);
+    }
+    function detach_dev(node) {
+        dispatch_dev("SvelteDOMRemove", { node });
+        detach(node);
+    }
+    function attr_dev(node, attribute, value) {
+        attr(node, attribute, value);
+        if (value == null)
+            dispatch_dev("SvelteDOMRemoveAttribute", { node, attribute });
+        else
+            dispatch_dev("SvelteDOMSetAttribute", { node, attribute, value });
+    }
     function validate_slots(name, slot, keys) {
         for (const slot_key of Object.keys(slot)) {
             if (!~keys.indexOf(slot_key)) {
@@ -263,84 +295,415 @@ var app = (function () {
         $inject_state() { }
     }
 
-    class BinaryPoint32 {
-        constructor(x, y) {
-            this.binary = this.bin(x, y);
+    const log = (message, type = 'log') => {
+      if (type === 'error') {
+        if (console && typeof console.error === 'function') console.error(message);
+      } else {
+        if (console && typeof console.info === 'function') console.info(message);
+      }
+    };
+
+    const error = message => log(message, 'error');
+
+    const isGamepadSupported = () =>
+      (navigator.getGamepads && typeof navigator.getGamepads === 'function') ||
+      (navigator.getGamepads && typeof navigator.webkitGetGamepads === 'function') ||
+      false;
+
+    const emptyEvents = () => ({ action: () => {}, after: () => {}, before: () => {} });
+
+    const MESSAGES = {
+      ON: 'Gamepad detected.',
+      OFF: 'Gamepad disconnected.',
+      INVALID_PROPERTY: 'Invalid property.',
+      INVALID_VALUE_NUMBER: 'Invalid value. It must be a number between 0.00 and 1.00.',
+      INVALID_BUTTON: 'Button does not exist.',
+      UNKNOWN_EVENT: 'Unknown event name.',
+      NO_SUPPORT: 'Your web browser does not support the Gamepad API.'
+    };
+
+    const gamepad = {
+      init: function(gpad) {
+        let gamepadPrototype = {
+          id: gpad.index,
+          buttons: gpad.buttons.length,
+          axes: Math.floor(gpad.axes.length / 2),
+          axeValues: [],
+          axeThreshold: [1.0],
+          hapticActuator: null,
+          vibrationMode: -1,
+          vibration: false,
+          mapping: gpad.mapping,
+          buttonActions: {},
+          axesActions: {},
+          pressed: {},
+          set: function(property, value) {
+            const properties = ['axeThreshold'];
+            if (properties.indexOf(property) >= 0) {
+              if (property === 'axeThreshold' && (!parseFloat(value) || value < 0.0 || value > 1.0)) {
+                error(MESSAGES.INVALID_VALUE_NUMBER);
+                return;
+              }
+              this[property] = value;
+            } else {
+              error(MESSAGES.INVALID_PROPERTY);
+            }
+          },
+          vibrate: function(value = 0.75, duration = 500) {
+            if (this.hapticActuator) {
+              switch (this.vibrationMode) {
+                case 0:
+                  return this.hapticActuator.pulse(value, duration);
+                case 1:
+                  return this.hapticActuator.playEffect('dual-rumble', {
+                    duration: duration,
+                    strongMagnitude: value,
+                    weakMagnitude: value
+                  });
+              }
+            }
+          },
+          triggerDirectionalAction: function(id, axe, condition, x, index) {
+            if (condition && x % 2 === index) {
+              if (!this.pressed[`${id}${axe}`]) {
+                this.pressed[`${id}${axe}`] = true;
+                this.axesActions[axe][id].before();
+              }
+              this.axesActions[axe][id].action();
+            } else if (this.pressed[`${id}${axe}`] && x % 2 === index) {
+              delete this.pressed[`${id}${axe}`];
+              this.axesActions[axe][id].after();
+            }
+          },
+          checkStatus: function() {
+            let gp = {};
+            const gps = navigator.getGamepads
+              ? navigator.getGamepads()
+              : navigator.webkitGetGamepads
+              ? navigator.webkitGetGamepads()
+              : [];
+
+            if (gps.length) {
+              gp = gps[this.id];
+              if (gp.buttons) {
+                for (let x = 0; x < this.buttons; x++) {
+                  if (gp.buttons[x].pressed === true) {
+                    if (!this.pressed[`button${x}`]) {
+                      this.pressed[`button${x}`] = true;
+                      this.buttonActions[x].before();
+                    }
+                    this.buttonActions[x].action();
+                  } else if (this.pressed[`button${x}`]) {
+                    delete this.pressed[`button${x}`];
+                    this.buttonActions[x].after();
+                  }
+                }
+              }
+              if (gp.axes) {
+                const modifier = gp.axes.length % 2; // Firefox hack: detects one additional axe
+                for (let x = 0; x < this.axes * 2; x++) {
+                  const val = gp.axes[x + modifier].toFixed(4);
+                  const axe = Math.floor(x / 2);
+                  this.axeValues[axe][x % 2] = val;
+
+                  this.triggerDirectionalAction('right', axe, val >= this.axeThreshold[0], x, 0);
+                  this.triggerDirectionalAction('left', axe, val <= -this.axeThreshold[0], x, 0);
+                  this.triggerDirectionalAction('down', axe, val >= this.axeThreshold[0], x, 1);
+                  this.triggerDirectionalAction('up', axe, val <= -this.axeThreshold[0], x, 1);
+                }
+              }
+            }
+          },
+          associateEvent: function(eventName, callback, type) {
+            if (eventName.match(/^button\d+$/)) {
+              const buttonId = parseInt(eventName.match(/^button(\d+)$/)[1]);
+              if (buttonId >= 0 && buttonId < this.buttons) {
+                this.buttonActions[buttonId][type] = callback;
+              } else {
+                error(MESSAGES.INVALID_BUTTON);
+              }
+            } else if (eventName === 'start') {
+              this.buttonActions[9][type] = callback;
+            } else if (eventName === 'select') {
+              this.buttonActions[8][type] = callback;
+            } else if (eventName === 'r1') {
+              this.buttonActions[5][type] = callback;
+            } else if (eventName === 'r2') {
+              this.buttonActions[7][type] = callback;
+            } else if (eventName === 'l1') {
+              this.buttonActions[4][type] = callback;
+            } else if (eventName === 'l2') {
+              this.buttonActions[6][type] = callback;
+            } else if (eventName === 'power') {
+              if (this.buttons >= 17) {
+                this.buttonActions[16][type] = callback;
+              } else {
+                error(MESSAGES.INVALID_BUTTON);
+              }
+            } else if (eventName.match(/^(up|down|left|right)(\d+)$/)) {
+              const matches = eventName.match(/^(up|down|left|right)(\d+)$/);
+              const direction = matches[1];
+              const axe = parseInt(matches[2]);
+              if (axe >= 0 && axe < this.axes) {
+                this.axesActions[axe][direction][type] = callback;
+              } else {
+                error(MESSAGES.INVALID_BUTTON);
+              }
+            } else if (eventName.match(/^(up|down|left|right)$/)) {
+              const direction = eventName.match(/^(up|down|left|right)$/)[1];
+              this.axesActions[0][direction][type] = callback;
+            }
+            return this;
+          },
+          on: function(eventName, callback) {
+            return this.associateEvent(eventName, callback, 'action');
+          },
+          off: function(eventName) {
+            return this.associateEvent(eventName, function() {}, 'action');
+          },
+          after: function(eventName, callback) {
+            return this.associateEvent(eventName, callback, 'after');
+          },
+          before: function(eventName, callback) {
+            return this.associateEvent(eventName, callback, 'before');
+          }
+        };
+
+        for (let x = 0; x < gamepadPrototype.buttons; x++) {
+          gamepadPrototype.buttonActions[x] = emptyEvents();
         }
-        bin(x, y) {
-            return (x << 16) + y;
+        for (let x = 0; x < gamepadPrototype.axes; x++) {
+          gamepadPrototype.axesActions[x] = {
+            down: emptyEvents(),
+            left: emptyEvents(),
+            right: emptyEvents(),
+            up: emptyEvents()
+          };
+          gamepadPrototype.axeValues[x] = [0, 0];
         }
-        get() {
-            return this.binary;
+
+        // check if vibration actuator exists
+        if (gpad.hapticActuators) {
+          // newer standard
+          if (typeof gpad.hapticActuators.pulse === 'function') {
+            gamepadPrototype.hapticActuator = gpad.hapticActuators;
+            gamepadPrototype.vibrationMode = 0;
+            gamepadPrototype.vibration = true;
+          } else if (gpad.hapticActuators[0] && typeof gpad.hapticActuators[0].pulse === 'function') {
+            gamepadPrototype.hapticActuator = gpad.hapticActuators[0];
+            gamepadPrototype.vibrationMode = 0;
+            gamepadPrototype.vibration = true;
+          }
+        } else if (gpad.vibrationActuator) {
+          // old chrome stuff
+          if (typeof gpad.vibrationActuator.playEffect === 'function') {
+            gamepadPrototype.hapticActuator = gpad.vibrationActuator;
+            gamepadPrototype.vibrationMode = 1;
+            gamepadPrototype.vibration = true;
+          }
         }
-    }
+
+        return gamepadPrototype;
+      }
+    };
+
+    const gameControl = {
+      gamepads: {},
+      axeThreshold: [1.0], // this is an array so it can be expanded without breaking in the future
+      isReady: isGamepadSupported(),
+      onConnect: function() {},
+      onDisconnect: function() {},
+      onBeforeCycle: function() {},
+      onAfterCycle: function() {},
+      getGamepads: function() {
+        return this.gamepads;
+      },
+      getGamepad: function(id) {
+        if (this.gamepads[id]) {
+          return this.gamepads[id];
+        }
+        return null;
+      },
+      set: function(property, value) {
+        const properties = ['axeThreshold'];
+        if (properties.indexOf(property) >= 0) {
+          if (property === 'axeThreshold' && (!parseFloat(value) || value < 0.0 || value > 1.0)) {
+            error(MESSAGES.INVALID_VALUE_NUMBER);
+            return;
+          }
+
+          this[property] = value;
+
+          if (property === 'axeThreshold') {
+            const gps = this.getGamepads();
+            const ids = Object.keys(gps);
+            for (let x = 0; x < ids.length; x++) {
+              gps[ids[x]].set('axeThreshold', this.axeThreshold);
+            }
+          }
+        } else {
+          error(MESSAGES.INVALID_PROPERTY);
+        }
+      },
+      checkStatus: function() {
+        const requestAnimationFrame =
+          window.requestAnimationFrame || window.webkitRequestAnimationFrame;
+        const gamepadIds = Object.keys(gameControl.gamepads);
+
+        gameControl.onBeforeCycle();
+
+        for (let x = 0; x < gamepadIds.length; x++) {
+          gameControl.gamepads[gamepadIds[x]].checkStatus();
+        }
+
+        gameControl.onAfterCycle();
+
+        if (gamepadIds.length > 0) {
+          requestAnimationFrame(gameControl.checkStatus);
+        }
+      },
+      init: function() {
+        window.addEventListener('gamepadconnected', e => {
+          const egp = e.gamepad || e.detail.gamepad;
+          log(MESSAGES.ON);
+          if (!window.gamepads) window.gamepads = {};
+          if (egp) {
+            if (!window.gamepads[egp.index]) {
+              window.gamepads[egp.index] = egp;
+              const gp = gamepad.init(egp);
+              gp.set('axeThreshold', this.axeThreshold);
+              this.gamepads[gp.id] = gp;
+              this.onConnect(this.gamepads[gp.id]);
+            }
+            if (Object.keys(this.gamepads).length === 1) this.checkStatus();
+          }
+        });
+        window.addEventListener('gamepaddisconnected', e => {
+          const egp = e.gamepad || e.detail.gamepad;
+          log(MESSAGES.OFF);
+          if (egp) {
+            delete window.gamepads[egp.index];
+            delete this.gamepads[egp.index];
+            this.onDisconnect(egp.index);
+          }
+        });
+      },
+      on: function(eventName, callback) {
+        switch (eventName) {
+          case 'connect':
+            this.onConnect = callback;
+            break;
+          case 'disconnect':
+            this.onDisconnect = callback;
+            break;
+          case 'beforeCycle':
+          case 'beforecycle':
+            this.onBeforeCycle = callback;
+            break;
+          case 'afterCycle':
+          case 'aftercycle':
+            this.onAfterCycle = callback;
+            break;
+          default:
+            error(MESSAGES.UNKNOWN_EVENT);
+            break;
+        }
+        return this;
+      },
+      off: function(eventName) {
+        switch (eventName) {
+          case 'connect':
+            this.onConnect = function() {};
+            break;
+          case 'disconnect':
+            this.onDisconnect = function() {};
+            break;
+          case 'beforeCycle':
+          case 'beforecycle':
+            this.onBeforeCycle = function() {};
+            break;
+          case 'afterCycle':
+          case 'aftercycle':
+            this.onAfterCycle = function() {};
+            break;
+          default:
+            error(MESSAGES.UNKNOWN_EVENT);
+            break;
+        }
+        return this;
+      }
+    };
+
+    gameControl.init();
 
     class GamepadEventManager {
         constructor(ps) {
             this.ps = ps;
         }
-        pollGamepads() {
-            //var gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : []);
-            let gamepads = navigator.getGamepads();
-            for (let i = 0; i < gamepads.length; i++) {
-                var gp = gamepads[i];
-                if (gp) {
-                    this.connected(gp);
-                    console.log("Gamepad connected at index ", gp.index, ": ", gp.id, ". It has ", gp.buttons.length, " buttons and ", gp.axes.length, " axes.");
-                    clearInterval(this.interval);
-                }
-            }
-        }
         connected(gamepad) {
+            if (this.gamepad)
+                return false;
             this.gamepad = gamepad;
-            console.log(gamepad);
+            console.log("Gamepad detected.", gamepad);
+            return true;
         }
         disconnected(e) {
-            this.gamepad = undefined;
-        }
-        tick(gamepad) {
-            if (!gamepad)
-                return;
-            console.log("connected:", gamepad.connected, gamepad.axes[0], gamepad.axes[1], gamepad.axes[2], gamepad.axes[3]);
+            console.log("Gamepad disconnected.", this.gamepad);
         }
         watch() {
-            window.addEventListener("gamepadconnected", (e) => {
-                this.connected(navigator.getGamepads()[e.gamepad.index]);
-            });
-            window.addEventListener("gamepaddisconnected", (e) => {
-                this.disconnected(e);
-                if (!('ongamepadconnected' in window)) {
-                    // No gamepad events available, poll instead.
-                    this.interval = setInterval(this.pollGamepads, 500);
-                }
-            });
-            requestAnimationFrame(() => {
-                this.tick(this.gamepad);
+            gameControl.on('connect', (gamepad) => {
+                if (!this.connected(gamepad))
+                    return;
+                gamepad.on('up', (e) => {
+                    console.log("moving up");
+                });
+                gamepad.on('down', (e) => {
+                    console.log("moving down");
+                });
+                gamepad.on('left', (e) => {
+                    console.log("moving left");
+                });
+                gamepad.on('right', (e) => {
+                    console.log("moving right");
+                });
             });
         }
     }
 
-    class PositionSynchronizer {
+    class GyroscopeEventManager {
+        constructor(cps) {
+            debugger;
+            this.cps = cps;
+        }
+        handleOrientation(e) {
+            debugger;
+            console.log("orientation", e);
+        }
+        handleMotion(e) {
+            debugger;
+            console.log("motion", e);
+        }
+        watch() {
+            debugger;
+            window.addEventListener("deviceorientation", this.handleOrientation, true);
+            window.addEventListener("devicemotion", this.handleMotion, true);
+        }
+    }
+
+    class CursorPositionSynchronizer {
         constructor() {
             this.replied = false;
             this.pressed = false;
-            this.x = 0;
-            this.y = 0;
-            this.lastSentX = 0;
-            this.lastSentY = 0;
+            this.direction = CursorPositionSynchronizer.DIRECTION_NONE;
             this.manageWebSocket();
         }
         manageWebSocket() {
-            this.ws = new WebSocket("ws://localhost/mouse/tncrazvan");
-            this.ws.onopen = e => {
-                this.replied = true;
-                this.x = 0;
-                this.y = 0;
+            this.ws = new WebSocket("ws://" + location.host + "/cursor");
+            this.ws.onopen = function () {
+                console.log("Connected");
             };
-            this.ws.onmessage = e => {
-                this.replied = true;
-                this.x = 0;
-                this.y = 0;
+            this.ws.onclose = function () {
+                console.error("Disonnected");
             };
         }
         setPressed(value) {
@@ -351,59 +714,44 @@ var app = (function () {
         }
         moveUp() {
             this.pressed = true;
-            if (this.y > 0)
-                this.y = 0;
-            this.y -= PositionSynchronizer.STEP;
+            this.direction |= CursorPositionSynchronizer.DIRECTION_UP;
         }
         moveDown() {
             this.pressed = true;
-            if (this.y < 0)
-                this.y = 0;
-            this.y += PositionSynchronizer.STEP;
+            this.direction |= CursorPositionSynchronizer.DIRECTION_DOWN;
         }
         moveLeft() {
             this.pressed = true;
-            if (this.x > 0)
-                this.x = 0;
-            this.x -= PositionSynchronizer.STEP;
+            this.direction |= CursorPositionSynchronizer.DIRECTION_LEFT;
         }
         moveRight() {
             this.pressed = true;
-            if (this.x < 0)
-                this.x = 0;
-            this.x += PositionSynchronizer.STEP;
+            this.direction |= CursorPositionSynchronizer.DIRECTION_RIGHT;
+        }
+        stopMoving() {
+            this.setPressed(false);
+            this.direction = CursorPositionSynchronizer.DIRECTION_NONE;
         }
         send() {
-            console.log(this.x, this.y);
-            let point = new BinaryPoint32(this.x, this.y);
-            this.ws.send(point.get() + '');
-            this.lastSentX = this.x;
-            this.lastSentY = this.y;
-            this.x = 0;
-            this.y = 0;
-        }
-        trySend() {
-            if ((this.lastSentX !== this.x || this.lastSentY !== this.y) && this.pressed)
-                try {
-                    console.log("sending");
-                    this.replied = false;
-                    this.send();
-                }
-                catch (e) {
-                    console.error(e);
-                }
+            if (this.lastSentDirection !== undefined && this.lastSentDirection === this.direction) {
+                console.log("Same direction as before.");
+                return;
+            }
+            console.log("Sending:", this.direction);
+            this.ws.send('' + this.direction);
+            this.lastSentDirection = this.direction;
         }
     }
-    PositionSynchronizer.STEP = 10;
-    PositionSynchronizer.REFRESH_RATE = 10;
-    PositionSynchronizer.ARROW_UP = 38;
-    PositionSynchronizer.ARROW_DOWN = 40;
-    PositionSynchronizer.ARROW_LEFT = 37;
-    PositionSynchronizer.ARROW_RIGHT = 39;
+    CursorPositionSynchronizer.DIRECTION_LEFT = 8;
+    CursorPositionSynchronizer.DIRECTION_RIGHT = 4;
+    CursorPositionSynchronizer.DIRECTION_UP = 2;
+    CursorPositionSynchronizer.DIRECTION_DOWN = 1;
+    CursorPositionSynchronizer.DIRECTION_NONE = 0;
 
     class KeyboardEventManager {
-        constructor(ps) {
-            this.ps = ps;
+        constructor(cps, ts) {
+            this.cps = cps;
+            this.ts = ts;
         }
         watch() {
             this.manageKeyUp();
@@ -411,42 +759,90 @@ var app = (function () {
         }
         manageKeyUp() {
             document.body.onkeyup = event => {
-                this.ps.setPressed(false);
+                switch (event.code) {
+                    case "ArrowUp":
+                    case "ArrowDown":
+                    case "ArrowLeft":
+                    case "ArrowRight":
+                        this.cps.stopMoving();
+                        this.cps.send();
+                        break;
+                }
             };
         }
         manageKeyDown() {
             document.body.onkeydown = event => {
-                switch (event.keyCode) {
-                    case PositionSynchronizer.ARROW_UP:
-                        this.ps.moveUp();
+                switch (event.code) {
+                    case "ArrowUp":
+                        this.cps.moveUp();
+                        this.cps.send();
                         break;
-                    case PositionSynchronizer.ARROW_DOWN:
-                        this.ps.moveDown();
+                    case "ArrowDown":
+                        this.cps.moveDown();
+                        this.cps.send();
                         break;
-                    case PositionSynchronizer.ARROW_LEFT:
-                        this.ps.moveLeft();
+                    case "ArrowLeft":
+                        this.cps.moveLeft();
+                        this.cps.send();
                         break;
-                    case PositionSynchronizer.ARROW_RIGHT:
-                        this.ps.moveRight();
+                    case "ArrowRight":
+                        this.cps.moveRight();
+                        this.cps.send();
+                        break;
+                    default:
+                        console.log("sending", event.keyCode);
+                        //this.ts.send(event.keyCode);
                         break;
                 }
             };
         }
     }
 
-    /* src\App.svelte generated by Svelte v3.25.0 */
+    class TypingSynchronizer {
+        constructor() {
+            this.manageWebSocket();
+        }
+        manageWebSocket() {
+            this.ws = new WebSocket("ws://" + location.host + "/typing");
+            this.ws.onopen = function () {
+                console.log("Connected");
+            };
+            this.ws.onclose = function () {
+                console.error("Disonnected");
+            };
+        }
+        send(keycode) {
+            this.ws.send('' + keycode);
+        }
+    }
+
+    /* src\main\svelte\App.svelte generated by Svelte v3.25.0 */
+    const file = "src\\main\\svelte\\App.svelte";
 
     function create_fragment(ctx) {
+    	let textarea;
+
     	const block = {
-    		c: noop,
+    		c: function create() {
+    			textarea = element("textarea");
+    			attr_dev(textarea, "name", "");
+    			attr_dev(textarea, "id", "");
+    			attr_dev(textarea, "cols", "30");
+    			attr_dev(textarea, "rows", "10");
+    			add_location(textarea, file, 24, 0, 995);
+    		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
     		},
-    		m: noop,
+    		m: function mount(target, anchor) {
+    			insert_dev(target, textarea, anchor);
+    		},
     		p: noop,
     		i: noop,
     		o: noop,
-    		d: noop
+    		d: function destroy(detaching) {
+    			if (detaching) detach_dev(textarea);
+    		}
     	};
 
     	dispatch_dev("SvelteRegisterBlock", {
@@ -473,18 +869,17 @@ var app = (function () {
     		gamepad = undefined;
     	}
 
-    	const POSITION_SYNC = new PositionSynchronizer();
-    	const GEM = new GamepadEventManager(POSITION_SYNC);
-    	const KEM = new KeyboardEventManager(POSITION_SYNC);
+    	const CURSOR_POSITION_SYNC = new CursorPositionSynchronizer();
+    	const TYPING_SYNC = new TypingSynchronizer();
 
-    	function loop() {
-    		POSITION_SYNC.trySend();
-    	}
+    	//const GEM:GamepadEventManager = new GamepadEventManager(CURSOR_POSITION_SYNC);
+    	const KEM = new KeyboardEventManager(CURSOR_POSITION_SYNC, TYPING_SYNC);
+
+    	const GYEM = new GyroscopeEventManager(CURSOR_POSITION_SYNC);
 
     	onMount(() => {
-    		GEM.watch();
     		KEM.watch();
-    		requestAnimationFrame(loop);
+    		GYEM.watch();
     	});
 
     	const writable_props = [];
@@ -495,17 +890,18 @@ var app = (function () {
 
     	$$self.$capture_state = () => ({
     		onMount,
-    		BinaryPoint32,
     		GamepadEventManager,
-    		PositionSynchronizer,
+    		GyroscopeEventManager,
+    		PositionSynchronizer: CursorPositionSynchronizer,
     		KeyboardEventManager,
+    		TypingSynchronizer,
     		gamepad,
     		gamepadConnected,
     		gamepadDisconnected,
-    		POSITION_SYNC,
-    		GEM,
+    		CURSOR_POSITION_SYNC,
+    		TYPING_SYNC,
     		KEM,
-    		loop
+    		GYEM
     	});
 
     	$$self.$inject_state = $$props => {
