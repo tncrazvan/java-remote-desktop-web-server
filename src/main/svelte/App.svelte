@@ -1,9 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import GamepadEventManager from './scripts/event-managers/GamepadEventManager';
-import GyroscopeEventManager from './scripts/event-managers/GyroscopeEventManager';
 import PositionSynchronizer from "./scripts/synchronizers/CursorPositionSynchronizer";
-import KeyboardEventManager from "./scripts/event-managers/KeyboardEventManager";
 import TypingSynchronizer from "./scripts/synchronizers/TypingSynchronizer";
 
 
@@ -19,14 +17,10 @@ function gamepadDisconnected(e){
 
 const CURSOR_POSITION_SYNC:PositionSynchronizer = new PositionSynchronizer();
 const TYPING_SYNC:TypingSynchronizer = new TypingSynchronizer();
-//const GEM:GamepadEventManager = new GamepadEventManager(CURSOR_POSITION_SYNC);
-const KEM:KeyboardEventManager = new KeyboardEventManager(CURSOR_POSITION_SYNC,TYPING_SYNC);
-const GYEM:GyroscopeEventManager = new GyroscopeEventManager(CURSOR_POSITION_SYNC);
-
+const GEM:GamepadEventManager = new GamepadEventManager(CURSOR_POSITION_SYNC,TYPING_SYNC);
 
 onMount(() => {
-	KEM.watch();
-	GYEM.watch();
+	GEM.watch();
 });
 </script>
 

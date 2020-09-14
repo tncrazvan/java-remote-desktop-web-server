@@ -37,9 +37,9 @@ public class CursorController {
 
     @OnMessage
     public void onMessage(Session session, String message){
-        int data = Integer.parseInt(message);
-        byte direction = (byte) ((data << 28)>>28);
-        mouse.setDirection(direction);
+        String[] xy = message.split("x");
+        mouse.inputX = Integer.parseInt(xy[0]);
+        mouse.inputY = Integer.parseInt(xy[1]);
     }
 
 

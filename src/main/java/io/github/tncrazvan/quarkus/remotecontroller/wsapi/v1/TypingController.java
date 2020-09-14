@@ -21,14 +21,12 @@ import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.Keyboard;
 public class TypingController {
     @Inject
     Keyboard keyboard;
-    Robot robot;
 
     Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
     public void onOpen(Session session) throws AWTException {
         keyboard.watch();
-        robot = keyboard.getRobot();
     }
 
     @OnClose
@@ -37,12 +35,15 @@ public class TypingController {
     @OnError
     public void onError(Session session, Throwable throwable) {}
 
+
     @OnMessage
     public void onMessage(Session session, String message){
-        int code = Integer.parseInt(message);
-        robot.keyPress(code);
-        robot.keyRelease(code);
-        System.out.println(String.format("key: %s", code));
+        int key = Integer.parseInt(message);
+        if(key < 0)
+            keyboard.release(-key);
+        else
+            keyboard.press(key);
+        
     }
 
 
