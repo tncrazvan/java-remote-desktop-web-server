@@ -7,10 +7,10 @@ export default class TypingSynchronizer{
     private manageWebSocket():void{
         this.ws = new WebSocket("ws://192.168.1.236/typing");
         this.ws.onopen=function(){
-            console.log("Connected");
+            console.log("Typing Synchronizer Connected");
         };
         this.ws.onclose=function(){
-            console.error("Disonnected");
+            console.error("Typing Synchronizer Disonnected");
         };
     }
     

@@ -10,8 +10,8 @@ import java.awt.Point;
 import java.awt.MouseInfo;
 
 @Singleton
-public class Mouse {
-    private Mouse() {}
+public class MousePosition {
+    private MousePosition() {}
     private Robot robot;
     static {
         System.setProperty("java.awt.headless", "false");

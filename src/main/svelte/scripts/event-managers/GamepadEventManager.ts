@@ -1,25 +1,62 @@
-import type CursorPositionSynchronizer from "../synchronizers/CursorPositionSynchronizer";
+import GamepadButtonManager from "../gamepad-button-tools/GamepadButtonManager";
+import type MouseButtonSynchronizer from "../synchronizers/MouseButtonSynchronizer";
+import type MousePositionSynchronizer from "../synchronizers/MousePositionSynchronizer";
 import type TypingSynchronizer from "../synchronizers/TypingSynchronizer";
 export default class GamepadEventManager{
     private interval;
-    private cps:CursorPositionSynchronizer;
+    private cps:MousePositionSynchronizer;
+    private mbs:MouseButtonSynchronizer;
     private ts:TypingSynchronizer;
     private gamepads:Array<Gamepad> = new Array<Gamepad>();
-    constructor(cps:CursorPositionSynchronizer,ts:TypingSynchronizer){
+
+    private keyLeft:number = 37;
+    private keyRight:number = 39;
+    private keyUp:number = 38;
+    private keyDown:number = 40;
+    private mouseRight:number = 2;
+    private keyboardRequest:Object = {};
+    private keyboardStatus:Object = {};
+    private keyboardKeys:Array<number> = [
+        this.keyLeft,
+        this.keyRight,
+        this.keyUp,
+        this.keyDown
+    ];
+    private mouseKeys:Array<number> = [
+        this.mouseRight
+    ];
+    private deltaTLeftStick:number = 0;
+    private release:number = 0;
+    private gamepadButtons:Map<number,GamepadButtonManager> = new Map<number,GamepadButtonManager>();
+
+
+    constructor(cps:MousePositionSynchronizer,mbs:MouseButtonSynchronizer,ts:TypingSynchronizer){
         this.cps=cps;
         this.ts=ts;
-        this.request[this.keyQ] = false;
-        this.request[this.keyE] = false;
-        this.request[this.keyW] = false;
-        this.request[this.keyS] = false;
-        
-        this.status[this.keyQ] = false;
-        this.status[this.keyE] = false;
-        this.status[this.keyW] = false;
-        this.status[this.keyS] = false;
+        this.mbs=mbs;
     }
 
-    public getCps():CursorPositionSynchronizer{
+    /**
+     * 
+     * @param code gamepad button code.
+     * @param delay action will be trigger only if the button 
+     * has been pressed for this ammount of time (milliseconds).
+     * @param action action to trigger.
+     */
+    public setButtonEventListener(code:number,delay:number,callback:Function):void{
+        const manager = new GamepadButtonManager(code,delay,(gbm:GamepadButtonManager,age:number)=>{
+            const result = callback(age);
+            if(result.mouse){
+                this.mbs.send(result.mouse);
+            }
+            if(result.keyboard){
+                this.mbs.send(result.keyboard);
+            }
+        });
+        this.gamepadButtons.set(code,manager);
+    }
+
+    public getCps():MousePositionSynchronizer{
         return this.cps;
     }
 
@@ -34,35 +71,7 @@ export default class GamepadEventManager{
     public issetGamepad(gamepad:Gamepad):boolean{
         return this.gamepads[gamepad.index] !== undefined;
     }
-
-    private keyQ:number = 81;
-    private keyE:number = 69;
-    private keyW:number = 87;
-    private keyS:number = 83;
-
-    private keyLeft:number = 37;
-    private keyRight:number = 39;
-    private keyUp:number = 38;
-    private keyDown:number = 40;
-
-
-    private request:Object = {};
-    private status:Object = {};
-
-    private keys:Array<number> = [
-        this.keyQ,
-        this.keyE,
-        this.keyW,
-        this.keyS,
-
-        this.keyLeft,
-        this.keyRight,
-        this.keyUp,
-        this.keyDown
-    ];
-    private deltaTLeftStick:number = 0;
-
-    private release:number = 0;
+    
     //private lastCodeSent = -1;
     public sendLeftStick(gamepad:Gamepad){
         const min = 1;
@@ -73,30 +82,30 @@ export default class GamepadEventManager{
         y = y == -0 || (y > 0 && y <= 0.1*min) || (y < 0 && y >= -0.1*min)?0:y;
         
         if(x < 0) {
-            this.status[this.keyRight] = false;
-            this.status[this.keyLeft] = true;
+            this.keyboardStatus[this.keyRight] = false;
+            this.keyboardStatus[this.keyLeft] = true;
         } else if(x > 0) {
-            this.status[this.keyRight] = true;
-            this.status[this.keyLeft] = false;
+            this.keyboardStatus[this.keyRight] = true;
+            this.keyboardStatus[this.keyLeft] = false;
         } else {
-            this.status[this.keyRight] = false;
-            this.status[this.keyLeft] = false;
+            this.keyboardStatus[this.keyRight] = false;
+            this.keyboardStatus[this.keyLeft] = false;
         }
 
         if(y < 0) {
-            this.status[this.keyUp] = true;
-            this.status[this.keyDown] = false;
+            this.keyboardStatus[this.keyUp] = true;
+            this.keyboardStatus[this.keyDown] = false;
         } else if(y > 0) {
-            this.status[this.keyUp] = false;
-            this.status[this.keyDown] = true;
+            this.keyboardStatus[this.keyUp] = false;
+            this.keyboardStatus[this.keyDown] = true;
         } else {
-            this.status[this.keyUp] = false;
-            this.status[this.keyDown] = false;
+            this.keyboardStatus[this.keyUp] = false;
+            this.keyboardStatus[this.keyDown] = false;
         }
 
-        this.keys.forEach(key=>{
-            let statusKey = this.status[key];
-            let requestKey = this.request[key];
+        this.keyboardKeys.forEach(key=>{
+            let statusKey = this.keyboardStatus[key];
+            let requestKey = this.keyboardRequest[key];
             if(statusKey !== requestKey){
                 if(statusKey){
                     console.log("pressing",key);
@@ -105,7 +114,7 @@ export default class GamepadEventManager{
                     console.log("releasing",key);
                     this.ts.send(-key);
                 }
-                this.request[key] = statusKey;
+                this.keyboardRequest[key] = statusKey;
             }
         });
 
@@ -123,6 +132,24 @@ export default class GamepadEventManager{
             this.cps.send(x,y);
     }
 
+
+    public sendButtons(gamepad:Gamepad){
+        /*
+        gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
+            if(btn.pressed){
+                console.log("Button",i,"is pressed");
+            }
+        })
+        */
+
+        gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
+            if(this.gamepadButtons.has(i)){
+                let manager = this.gamepadButtons.get(i);
+                manager.detect(gamepad);
+            }
+        });
+    }
+
     public lastX:number = 0;
     public lastY:number = 0;
     private loop(gamepad:Gamepad){
@@ -133,6 +160,7 @@ export default class GamepadEventManager{
 
         this.sendRightStick(gamepad);
         this.sendLeftStick(gamepad);
+        this.sendButtons(gamepad);
 
         let gamepads:Array<Gamepad> = navigator.getGamepads()
         if(gamepads[gamepad.index])

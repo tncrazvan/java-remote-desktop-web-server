@@ -2,54 +2,34 @@ package io.github.tncrazvan.quarkus.remotecontroller.tools.mouse;
 
 import java.awt.AWTException;
 import java.awt.Robot;
+import java.awt.event.InputEvent;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.inject.Singleton;
 
 @Singleton
-public class Keyboard {
-    private Keyboard() {
-    }
+public class MouseButton {
+    private MouseButton() {}
 
     private Robot robot;
-    private int keyQ = 81;
-    private int keyE = 69;
-    private int keyW = 87;
-    private int keyS = 83;
 
-    private int keyLeft = 37;
-    private int keyRight = 39;
-    private int keyUp = 38;
-    private int keyDown = 40;
+    private int buttonLeft = InputEvent.BUTTON1_DOWN_MASK;
+    private int buttonRight = InputEvent.BUTTON3_DOWN_MASK;
 
     private Map<Integer, Boolean> request = new HashMap<>() {
-        private static final long serialVersionUID = 3780356254428489014L;
+        private static final long serialVersionUID = 3265602770485092727L;
         {
-            put(keyQ, false);
-            put(keyE, false);
-            put(keyW, false);
-            put(keyS, false);
-
-            put(keyLeft, false);
-            put(keyRight, false);
-            put(keyUp, false);
-            put(keyDown, false);
+            put(buttonLeft, false);
+            put(buttonRight, false);
         }
     };
 
     private Map<Integer, Boolean> status = new HashMap<>() {
-        private static final long serialVersionUID = 508893608630487606L;
+        private static final long serialVersionUID = -977091579766151769L;
         {
-            put(keyQ, false);
-            put(keyE, false);
-            put(keyW, false);
-            put(keyS, false);
-
-            put(keyLeft, false);
-            put(keyRight, false);
-            put(keyUp, false);
-            put(keyDown, false);
+            put(buttonLeft, false);
+            put(buttonRight, false);
         }
     };
 
@@ -78,16 +58,16 @@ public class Keyboard {
                 while (watching) {
                     for (int i = 0; i < keys.length; i++) {
                         int key = keys[i];
-                        boolean statusKey = status.get(key);
-                        boolean requestKey = request.get(key);
-                        if(statusKey && !requestKey){
-                            robot.keyRelease(key);
+                        boolean statusButton = status.get(key);
+                        boolean requestButton = request.get(key);
+                        if(statusButton && !requestButton){
+                            robot.mouseRelease(key);
                         }
-                        if(!statusKey && requestKey){
-                            robot.keyPress(key);
+                        if(!statusButton && requestButton){
+                            robot.mousePress(key);
                         }
                         
-                        status.put(key, requestKey);
+                        status.put(key, requestButton);
                     }
                     Thread.sleep(1);
                 }

@@ -295,43 +295,97 @@ var app = (function () {
         $inject_state() { }
     }
 
+    class GamepadButtonManager {
+        constructor(code, delay = 0, action = () => console.log("Button", this.code, "has been pressed")) {
+            this.time = 0;
+            this.delay = 0;
+            this.code = -1;
+            this.gamepad = undefined;
+            this.delay = delay;
+            this.code = code;
+            this.action = action;
+        }
+        setAction(callback) {
+            this.action = callback;
+        }
+        setPressed(pressed) {
+            if (pressed)
+                this.time = Date.now();
+            else
+                this.time = 0;
+        }
+        isPressed() {
+            return this.time > 0;
+        }
+        detect(gamepad) {
+            for (let i = 0; i < gamepad.buttons.length; i++) {
+                if (i === this.code) {
+                    if (this.isPressed() && !gamepad.buttons[i].pressed) {
+                        const end = Date.now();
+                        const age = (end - this.time);
+                        if (age >= this.delay) {
+                            this.action(this, age);
+                        }
+                        else {
+                            console.warn("Button", this.code, "has only been pressed for", age, "milliseconds, expected", this.delay, "milliseconds.");
+                        }
+                        this.setPressed(false);
+                    }
+                    else if (!this.isPressed() && gamepad.buttons[i].pressed) {
+                        this.setPressed(true);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     class GamepadEventManager {
-        constructor(cps, ts) {
+        constructor(cps, mbs, ts) {
             this.gamepads = new Array();
-            this.keyQ = 81;
-            this.keyE = 69;
-            this.keyW = 87;
-            this.keyS = 83;
             this.keyLeft = 37;
             this.keyRight = 39;
             this.keyUp = 38;
             this.keyDown = 40;
-            this.request = {};
-            this.status = {};
-            this.keys = [
-                this.keyQ,
-                this.keyE,
-                this.keyW,
-                this.keyS,
+            this.mouseRight = 2;
+            this.keyboardRequest = {};
+            this.keyboardStatus = {};
+            this.keyboardKeys = [
                 this.keyLeft,
                 this.keyRight,
                 this.keyUp,
                 this.keyDown
             ];
+            this.mouseKeys = [
+                this.mouseRight
+            ];
             this.deltaTLeftStick = 0;
             this.release = 0;
+            this.gamepadButtons = new Map();
             this.lastX = 0;
             this.lastY = 0;
             this.cps = cps;
             this.ts = ts;
-            this.request[this.keyQ] = false;
-            this.request[this.keyE] = false;
-            this.request[this.keyW] = false;
-            this.request[this.keyS] = false;
-            this.status[this.keyQ] = false;
-            this.status[this.keyE] = false;
-            this.status[this.keyW] = false;
-            this.status[this.keyS] = false;
+            this.mbs = mbs;
+        }
+        /**
+         *
+         * @param code gamepad button code.
+         * @param delay action will be trigger only if the button
+         * has been pressed for this ammount of time (milliseconds).
+         * @param action action to trigger.
+         */
+        setButtonEventListener(code, delay, callback) {
+            const manager = new GamepadButtonManager(code, delay, (gbm, age) => {
+                const result = callback(age);
+                if (result.mouse) {
+                    this.mbs.send(result.mouse);
+                }
+                if (result.keyboard) {
+                    this.mbs.send(result.keyboard);
+                }
+            });
+            this.gamepadButtons.set(code, manager);
         }
         getCps() {
             return this.cps;
@@ -353,32 +407,32 @@ var app = (function () {
             x = x == -0 || (x > 0 && x <= 0.1 * min) || (x < 0 && x >= -0.1 * min) ? 0 : x;
             y = y == -0 || (y > 0 && y <= 0.1 * min) || (y < 0 && y >= -0.1 * min) ? 0 : y;
             if (x < 0) {
-                this.status[this.keyRight] = false;
-                this.status[this.keyLeft] = true;
+                this.keyboardStatus[this.keyRight] = false;
+                this.keyboardStatus[this.keyLeft] = true;
             }
             else if (x > 0) {
-                this.status[this.keyRight] = true;
-                this.status[this.keyLeft] = false;
+                this.keyboardStatus[this.keyRight] = true;
+                this.keyboardStatus[this.keyLeft] = false;
             }
             else {
-                this.status[this.keyRight] = false;
-                this.status[this.keyLeft] = false;
+                this.keyboardStatus[this.keyRight] = false;
+                this.keyboardStatus[this.keyLeft] = false;
             }
             if (y < 0) {
-                this.status[this.keyUp] = true;
-                this.status[this.keyDown] = false;
+                this.keyboardStatus[this.keyUp] = true;
+                this.keyboardStatus[this.keyDown] = false;
             }
             else if (y > 0) {
-                this.status[this.keyUp] = false;
-                this.status[this.keyDown] = true;
+                this.keyboardStatus[this.keyUp] = false;
+                this.keyboardStatus[this.keyDown] = true;
             }
             else {
-                this.status[this.keyUp] = false;
-                this.status[this.keyDown] = false;
+                this.keyboardStatus[this.keyUp] = false;
+                this.keyboardStatus[this.keyDown] = false;
             }
-            this.keys.forEach(key => {
-                let statusKey = this.status[key];
-                let requestKey = this.request[key];
+            this.keyboardKeys.forEach(key => {
+                let statusKey = this.keyboardStatus[key];
+                let requestKey = this.keyboardRequest[key];
                 if (statusKey !== requestKey) {
                     if (statusKey) {
                         console.log("pressing", key);
@@ -388,7 +442,7 @@ var app = (function () {
                         console.log("releasing", key);
                         this.ts.send(-key);
                     }
-                    this.request[key] = statusKey;
+                    this.keyboardRequest[key] = statusKey;
                 }
             });
         }
@@ -401,6 +455,21 @@ var app = (function () {
             if (x !== 0 || y !== 0)
                 this.cps.send(x, y);
         }
+        sendButtons(gamepad) {
+            /*
+            gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
+                if(btn.pressed){
+                    console.log("Button",i,"is pressed");
+                }
+            })
+            */
+            gamepad.buttons.forEach((btn, i) => {
+                if (this.gamepadButtons.has(i)) {
+                    let manager = this.gamepadButtons.get(i);
+                    manager.detect(gamepad);
+                }
+            });
+        }
         loop(gamepad) {
             if (!this.issetGamepad(gamepad)) {
                 console.warn("Closing gamepad loop.");
@@ -408,6 +477,7 @@ var app = (function () {
             }
             this.sendRightStick(gamepad);
             this.sendLeftStick(gamepad);
+            this.sendButtons(gamepad);
             let gamepads = navigator.getGamepads();
             if (gamepads[gamepad.index])
                 setTimeout(() => this.loop(gamepads[gamepad.index]), 10);
@@ -422,23 +492,41 @@ var app = (function () {
         }
     }
 
-    class CursorPositionSynchronizer {
+    class MouseButtonSynchronizer {
         constructor() {
             this.manageWebSocket();
         }
         manageWebSocket() {
-            this.ws = new WebSocket("ws://razshare.zapto.org/cursor");
+            this.ws = new WebSocket("ws://razshare.zapto.org/mouse-button");
             this.ws.onopen = function () {
-                console.log("Connected");
+                console.log("Mouse Button Synchronizer Connected");
             };
             this.ws.onclose = function () {
-                console.error("Disonnected");
+                console.error("Mouse Button Synchronizer Disonnected");
+            };
+        }
+        send(btnCode) {
+            this.ws.send("" + btnCode);
+        }
+    }
+    MouseButtonSynchronizer.BUTTON_1 = 1024;
+    MouseButtonSynchronizer.BUTTON_3 = 4096;
+
+    class MousePositionSynchronizer {
+        constructor() {
+            this.manageWebSocket();
+        }
+        manageWebSocket() {
+            this.ws = new WebSocket("ws://razshare.zapto.org/mouse-position");
+            this.ws.onopen = function () {
+                console.log("Cursor Position Synchronizer Connected");
+            };
+            this.ws.onclose = function () {
+                console.error("Cursor Position Synchronizer Disonnected");
             };
         }
         send(x, y) {
-            x = (x * 10).toFixed(0);
-            y = (y * 10).toFixed(0);
-            this.ws.send(x + "x" + y);
+            this.ws.send((x * 10).toFixed(0) + "x" + (y * 10).toFixed(0));
         }
     }
 
@@ -449,10 +537,10 @@ var app = (function () {
         manageWebSocket() {
             this.ws = new WebSocket("ws://192.168.1.236/typing");
             this.ws.onopen = function () {
-                console.log("Connected");
+                console.log("Typing Synchronizer Connected");
             };
             this.ws.onclose = function () {
-                console.error("Disonnected");
+                console.error("Typing Synchronizer Disonnected");
             };
         }
         send(keycode) {
@@ -473,7 +561,7 @@ var app = (function () {
     			attr_dev(textarea, "id", "");
     			attr_dev(textarea, "cols", "30");
     			attr_dev(textarea, "rows", "10");
-    			add_location(textarea, file, 19, 0, 662);
+    			add_location(textarea, file, 32, 0, 1276);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -513,11 +601,24 @@ var app = (function () {
     		gamepad = undefined;
     	}
 
-    	const CURSOR_POSITION_SYNC = new CursorPositionSynchronizer();
+    	const MOUSE_POSITION_SYNC = new MousePositionSynchronizer();
+    	const MOUSE_BUTTON_SYNC = new MouseButtonSynchronizer();
     	const TYPING_SYNC = new TypingSynchronizer();
-    	const GEM = new GamepadEventManager(CURSOR_POSITION_SYNC, TYPING_SYNC);
+    	const GEM = new GamepadEventManager(MOUSE_POSITION_SYNC, MOUSE_BUTTON_SYNC, TYPING_SYNC);
 
     	onMount(() => {
+    		let rightClickPressed = false;
+
+    		GEM.setButtonEventListener(11, 1000, time => {
+    			if (rightClickPressed) {
+    				rightClickPressed = !rightClickPressed;
+    				return { mouse: -MouseButtonSynchronizer.BUTTON_3 }; //RELEASE BUTTON
+    			} else {
+    				rightClickPressed = !rightClickPressed;
+    				return { mouse: MouseButtonSynchronizer.BUTTON_3 }; //PRESS BUTTON
+    			}
+    		});
+
     		GEM.watch();
     	});
 
@@ -530,12 +631,14 @@ var app = (function () {
     	$$self.$capture_state = () => ({
     		onMount,
     		GamepadEventManager,
-    		PositionSynchronizer: CursorPositionSynchronizer,
+    		MouseButtonSynchronizer,
+    		MousePositionSynchronizer,
     		TypingSynchronizer,
     		gamepad,
     		gamepadConnected,
     		gamepadDisconnected,
-    		CURSOR_POSITION_SYNC,
+    		MOUSE_POSITION_SYNC,
+    		MOUSE_BUTTON_SYNC,
     		TYPING_SYNC,
     		GEM
     	});
