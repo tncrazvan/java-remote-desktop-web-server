@@ -21,7 +21,7 @@ export default class GamepadButtonManager{
     public isPressed():boolean{
         return this.time > 0;
     }
-    private margin:number = 20;
+    public margin:number = 7;
     private signalsPressed:number = 0;
     private signalsReleased:number = 0;
     public detect(gamepad:Gamepad):void{
@@ -36,7 +36,9 @@ export default class GamepadButtonManager{
                     const end = Date.now();
                     const age = (end - this.time);
                     if(age >= this.delay){
-                        this.action(this,age);
+                        setTimeout(()=>{
+                            this.action(this,age);
+                        },0);
                     }else{
                         console.warn("Button",this.code,"has only been pressed for",age,"milliseconds, expected",this.delay,"milliseconds.");
                     }

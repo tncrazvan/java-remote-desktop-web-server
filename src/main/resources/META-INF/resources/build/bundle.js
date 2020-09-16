@@ -301,7 +301,7 @@ var app = (function () {
             this.delay = 0;
             this.code = -1;
             this.gamepad = undefined;
-            this.margin = 20;
+            this.margin = 7;
             this.signalsPressed = 0;
             this.signalsReleased = 0;
             this.delay = delay;
@@ -332,7 +332,9 @@ var app = (function () {
                         const end = Date.now();
                         const age = (end - this.time);
                         if (age >= this.delay) {
-                            this.action(this, age);
+                            setTimeout(() => {
+                                this.action(this, age);
+                            }, 0);
                         }
                         else {
                             console.warn("Button", this.code, "has only been pressed for", age, "milliseconds, expected", this.delay, "milliseconds.");
@@ -355,6 +357,23 @@ var app = (function () {
 
     class GamepadEventManager {
         constructor(cps, mbs, ts) {
+            // GAMEPAD KEY CODES
+            this.BUTTON_X = 0;
+            this.BUTTON_SQUARE = 2;
+            this.BUTTON_TRIANGLE = 2;
+            this.BUTTON_CIRCLE = 3;
+            this.BUTTON_LEFT_TRIGGER_1 = 4;
+            this.BUTTON_RIGHT_TRIGGER_1 = 5;
+            this.BUTTON_LEFT_TRIGGER_2 = 6;
+            this.BUTTON_RIGHT_TRIGGER_2 = 7;
+            this.BUTTON_SELECT = 8;
+            this.BUTTON_START = 9;
+            this.BUTTON_LEFT_STICK = 10;
+            this.BUTTON_RIGHT_STICK = 11;
+            this.BUTTON_ARROW_UP = 12;
+            this.BUTTON_ARROW_DOWN = 13;
+            this.BUTTON_ARROW_LEFT = 14;
+            this.BUTTON_ARROW_RIGHT = 15;
             this.gamepads = new Array();
             this.keyLeft = 37;
             this.keyRight = 39;
@@ -481,11 +500,11 @@ var app = (function () {
                 this.cps.send(x, y);
         }
         sendButtons(gamepad) {
-            gamepad.buttons.forEach((btn, i) => {
-                if (btn.pressed) {
-                    console.log("Button", i, "is pressed");
+            /*gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
+                if(btn.pressed){
+                    console.log("Button",i,"is pressed");
                 }
-            });
+            })*/
             gamepad.buttons.forEach((btn, i) => {
                 if (this.gamepadButtons.has(i)) {
                     let manager = this.gamepadButtons.get(i);

@@ -3,6 +3,25 @@ import type MouseButtonSynchronizer from "../synchronizers/MouseButtonSynchroniz
 import type MousePositionSynchronizer from "../synchronizers/MousePositionSynchronizer";
 import type TypingSynchronizer from "../synchronizers/TypingSynchronizer";
 export default class GamepadEventManager{
+    
+    // GAMEPAD KEY CODES
+    private BUTTON_X = 0;
+    private BUTTON_SQUARE = 2;
+    private BUTTON_TRIANGLE = 2;
+    private BUTTON_CIRCLE = 3;
+    private BUTTON_LEFT_TRIGGER_1 = 4;
+    private BUTTON_RIGHT_TRIGGER_1 = 5;
+    private BUTTON_LEFT_TRIGGER_2 = 6;
+    private BUTTON_RIGHT_TRIGGER_2 = 7;
+    private BUTTON_SELECT = 8;
+    private BUTTON_START = 9;
+    private BUTTON_LEFT_STICK = 10;
+    private BUTTON_RIGHT_STICK = 11;
+    private BUTTON_ARROW_UP = 12;
+    private BUTTON_ARROW_DOWN = 13;
+    private BUTTON_ARROW_LEFT = 14;
+    private BUTTON_ARROW_RIGHT = 15;
+
     private interval;
     private cps:MousePositionSynchronizer;
     private mbs:MouseButtonSynchronizer;
@@ -147,11 +166,11 @@ export default class GamepadEventManager{
 
     public sendButtons(gamepad:Gamepad){
         
-        gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
+        /*gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
             if(btn.pressed){
                 console.log("Button",i,"is pressed");
             }
-        })
+        })*/
         
 
         gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
