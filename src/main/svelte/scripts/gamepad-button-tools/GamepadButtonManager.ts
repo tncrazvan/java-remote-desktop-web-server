@@ -21,10 +21,18 @@ export default class GamepadButtonManager{
     public isPressed():boolean{
         return this.time > 0;
     }
+    private margin:number = 20;
+    private signalsPressed:number = 0;
+    private signalsReleased:number = 0;
     public detect(gamepad:Gamepad):void{
         for(let i = 0; i < gamepad.buttons.length; i++){
             if(i === this.code){
                 if(this.isPressed() && !gamepad.buttons[i].pressed){
+                    if(this.signalsReleased < this.margin) {
+                        this.signalsReleased++;
+                        break;
+                    }
+                    this.signalsReleased = 0;
                     const end = Date.now();
                     const age = (end - this.time);
                     if(age >= this.delay){
@@ -34,6 +42,11 @@ export default class GamepadButtonManager{
                     }
                     this.setPressed(false);
                 } else if(!this.isPressed() && gamepad.buttons[i].pressed){
+                    if(this.signalsPressed < this.margin){
+                        this.signalsPressed++;
+                        break;
+                    }
+                    this.signalsPressed = 0;
                     this.setPressed(true);
                 }
                 break;

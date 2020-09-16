@@ -14,19 +14,23 @@ import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
 
+import io.github.tncrazvan.quarkus.remotecontroller.tools.Loop;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MouseButton;
 
 @ServerEndpoint("/mouse-button")
 @ApplicationScoped
 public class MouseButtonController {
     @Inject
+    Loop loop;
+
+    @Inject
     MouseButton mouseButton;
 
     Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
-    public void onOpen(Session session) throws AWTException {
-        mouseButton.watch();
+    public void onOpen(Session session) {
+        loop.run();
     }
 
     @OnClose
@@ -38,6 +42,7 @@ public class MouseButtonController {
     @OnMessage
     public void onMessage(Session session, String message){
         int key = Integer.parseInt(message);
+
         if(key < 0)
             mouseButton.release(-key);
         else

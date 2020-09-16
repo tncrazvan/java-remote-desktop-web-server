@@ -1,49 +1,45 @@
 package io.github.tncrazvan.quarkus.remotecontroller.tools.mouse;
 
-import java.awt.AWTException;
-import java.awt.Robot;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
-import java.awt.PointerInfo;
-import java.awt.Point;
-import java.awt.MouseInfo;
+import io.github.tncrazvan.quarkus.remotecontroller.tools.MyRobot;
 
 @Singleton
 public class MousePosition {
+    public static final long PRECISION = 10;
+    @Inject
+    MyRobot robot;
+    @Inject
+    MouseButton mouseButton;
     private MousePosition() {}
-    private Robot robot;
     static {
         System.setProperty("java.awt.headless", "false");
     }
-    private boolean watching = false;
     public int inputX = 0;
     public int inputY = 0;
-    public void watch() throws AWTException {
-        if (watching)
-            return;
-        robot = new Robot();
-        watching = true;
-        new Thread(() -> {
-            int x = 0;
-            int y = 0;
-            Point current;
-            
-            try {
-                while (watching) {
-                    current = MouseInfo.getPointerInfo().getLocation();
-                    x = (int) current.getX() + inputX;
-                    y = (int) current.getY() + inputY;
-                    inputX = 0;
-                    inputY = 0;
-                    robot.mouseMove(x, y);
 
-                    Thread.sleep(0,500);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
+
+    private Rectangle rect = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+    private int xCenter = (int)(rect.width/2);
+    private int yCenter = (int)(rect.height/2);
+    private int x = xCenter;
+    private int y = yCenter;
+    private long lastExecTime = 0;
+    public void watch() {
+        long time = System.currentTimeMillis();
+        if(time - lastExecTime < PRECISION) return;
+        lastExecTime = time;
+        if(inputX != 0 || inputY != 0){
+            y += inputY;
+            x += inputX;
+            robot.mouseMove(x, y);
+        }
+        inputX = 0;
+        inputY = 0;
     }
     
 }

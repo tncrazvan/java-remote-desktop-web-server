@@ -7,26 +7,31 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+import javax.security.auth.kerberos.KeyTab;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
 import javax.websocket.OnMessage;
 import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
-import java.awt.Robot;
+
+import io.github.tncrazvan.quarkus.remotecontroller.tools.Loop;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.Keyboard;
 
 @ServerEndpoint("/typing")
 @ApplicationScoped
 public class TypingController {
     @Inject
+    Loop loop;
+    @Inject
     Keyboard keyboard;
+
 
     Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
-    public void onOpen(Session session) throws AWTException {
-        keyboard.watch();
+    public void onOpen(Session session) {
+        loop.run();
     }
 
     @OnClose
@@ -43,7 +48,6 @@ public class TypingController {
             keyboard.release(-key);
         else
             keyboard.press(key);
-        
     }
 
 

@@ -1,35 +1,41 @@
 package io.github.tncrazvan.quarkus.remotecontroller.tools.mouse;
 
-import java.awt.AWTException;
-import java.awt.Robot;
 import java.awt.event.InputEvent;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import io.github.tncrazvan.quarkus.remotecontroller.tools.MyRobot;
 
 @Singleton
 public class MouseButton {
+    public static final long PRECISION = 10;
     private MouseButton() {}
 
-    private Robot robot;
+    @Inject
+    MyRobot robot;
 
-    private int buttonLeft = InputEvent.BUTTON1_DOWN_MASK;
-    private int buttonRight = InputEvent.BUTTON3_DOWN_MASK;
-
+    public static final int BUTTON_1 = InputEvent.BUTTON1_DOWN_MASK;
+    public static final int BUTTON_2 = InputEvent.BUTTON3_DOWN_MASK;
+    public boolean holdingButton2(){
+        return status.get(BUTTON_2);
+    }
+    
     private Map<Integer, Boolean> request = new HashMap<>() {
         private static final long serialVersionUID = 3265602770485092727L;
         {
-            put(buttonLeft, false);
-            put(buttonRight, false);
+            put(BUTTON_1, false);
+            put(BUTTON_2, false);
         }
     };
 
     private Map<Integer, Boolean> status = new HashMap<>() {
         private static final long serialVersionUID = -977091579766151769L;
         {
-            put(buttonLeft, false);
-            put(buttonRight, false);
+            put(BUTTON_1, false);
+            put(BUTTON_2, false);
         }
     };
 
@@ -43,38 +49,25 @@ public class MouseButton {
             request.put(key, false);
     }
 
-    private boolean watching = false;
-
-    public void watch() throws AWTException {
-        if (watching)
-            return;
-        robot = new Robot();
-        watching = true;
-
-        new Thread(() -> {
-            Integer[] keys = status.keySet().toArray(new Integer[0]);
-            
-            try {
-                while (watching) {
-                    for (int i = 0; i < keys.length; i++) {
-                        int key = keys[i];
-                        boolean statusButton = status.get(key);
-                        boolean requestButton = request.get(key);
-                        if(statusButton && !requestButton){
-                            robot.mouseRelease(key);
-                        }
-                        if(!statusButton && requestButton){
-                            robot.mousePress(key);
-                        }
-                        
-                        status.put(key, requestButton);
-                    }
-                    Thread.sleep(1);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+    private Integer[] keys = status.keySet().toArray(new Integer[0]);
+    private long lastExecTime = 0;
+    public void watch() {
+        long time = System.currentTimeMillis();
+        if(time - lastExecTime < PRECISION) return;
+        lastExecTime = time;
+        for (int i = 0; i < keys.length; i++) {
+            int key = keys[i];
+            boolean statusButton = status.get(key);
+            boolean requestButton = request.get(key);
+            if(statusButton && !requestButton){
+                robot.mouseRelease(key);
             }
-        }).start();
+            if(!statusButton && requestButton){
+                robot.mousePress(key);
+            }
+
+            status.put(key, requestButton);
+        }    
     }
     
 }

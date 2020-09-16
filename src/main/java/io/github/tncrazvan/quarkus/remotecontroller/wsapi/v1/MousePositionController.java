@@ -14,19 +14,25 @@ import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.ServerEndpoint;
 
+import io.github.tncrazvan.quarkus.remotecontroller.tools.Loop;
+import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.Keyboard;
+import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MouseButton;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MousePosition;
 
 @ServerEndpoint("/mouse-position")
 @ApplicationScoped
 public class MousePositionController {
     @Inject
+    Loop loop;
+    @Inject
     MousePosition mousePosition;
+
 
     Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
-    public void onOpen(Session session) throws AWTException {
-        mousePosition.watch();
+    public void onOpen(Session session) {
+        loop.run();
     }
 
     @OnClose

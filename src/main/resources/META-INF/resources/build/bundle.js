@@ -301,6 +301,9 @@ var app = (function () {
             this.delay = 0;
             this.code = -1;
             this.gamepad = undefined;
+            this.margin = 20;
+            this.signalsPressed = 0;
+            this.signalsReleased = 0;
             this.delay = delay;
             this.code = code;
             this.action = action;
@@ -321,6 +324,11 @@ var app = (function () {
             for (let i = 0; i < gamepad.buttons.length; i++) {
                 if (i === this.code) {
                     if (this.isPressed() && !gamepad.buttons[i].pressed) {
+                        if (this.signalsReleased < this.margin) {
+                            this.signalsReleased++;
+                            break;
+                        }
+                        this.signalsReleased = 0;
                         const end = Date.now();
                         const age = (end - this.time);
                         if (age >= this.delay) {
@@ -332,6 +340,11 @@ var app = (function () {
                         this.setPressed(false);
                     }
                     else if (!this.isPressed() && gamepad.buttons[i].pressed) {
+                        if (this.signalsPressed < this.margin) {
+                            this.signalsPressed++;
+                            break;
+                        }
+                        this.signalsPressed = 0;
                         this.setPressed(true);
                     }
                     break;
@@ -378,11 +391,23 @@ var app = (function () {
         setButtonEventListener(code, delay, callback) {
             const manager = new GamepadButtonManager(code, delay, (gbm, age) => {
                 const result = callback(age);
-                if (result.mouse) {
-                    this.mbs.send(result.mouse);
+                if (result.mouse && result.mouse.length && result.mouse.length > 0) {
+                    result.mouse.forEach((c, i) => {
+                        if (i === 0)
+                            this.mbs.send(c);
+                        else {
+                            setTimeout(() => this.mbs.send(c), i * 10);
+                        }
+                    });
                 }
-                if (result.keyboard) {
-                    this.mbs.send(result.keyboard);
+                if (result.keyboard && result.keyboard.length && result.keyboard.length > 0) {
+                    result.keyboard.forEach((c, i) => {
+                        if (i === 0)
+                            this.ts.send(c);
+                        else {
+                            setTimeout(() => this.ts.send(c), i * 10);
+                        }
+                    });
                 }
             });
             this.gamepadButtons.set(code, manager);
@@ -456,13 +481,11 @@ var app = (function () {
                 this.cps.send(x, y);
         }
         sendButtons(gamepad) {
-            /*
-            gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
-                if(btn.pressed){
-                    console.log("Button",i,"is pressed");
+            gamepad.buttons.forEach((btn, i) => {
+                if (btn.pressed) {
+                    console.log("Button", i, "is pressed");
                 }
-            })
-            */
+            });
             gamepad.buttons.forEach((btn, i) => {
                 if (this.gamepadButtons.has(i)) {
                     let manager = this.gamepadButtons.get(i);
@@ -480,7 +503,7 @@ var app = (function () {
             this.sendButtons(gamepad);
             let gamepads = navigator.getGamepads();
             if (gamepads[gamepad.index])
-                setTimeout(() => this.loop(gamepads[gamepad.index]), 10);
+                setTimeout(() => this.loop(gamepads[gamepad.index]), 0);
         }
         connected($this, e) {
             $this.setGamepad(e.gamepad);
@@ -509,8 +532,6 @@ var app = (function () {
             this.ws.send("" + btnCode);
         }
     }
-    MouseButtonSynchronizer.BUTTON_1 = 1024;
-    MouseButtonSynchronizer.BUTTON_3 = 4096;
 
     class MousePositionSynchronizer {
         constructor() {
@@ -561,7 +582,7 @@ var app = (function () {
     			attr_dev(textarea, "id", "");
     			attr_dev(textarea, "cols", "30");
     			attr_dev(textarea, "rows", "10");
-    			add_location(textarea, file, 32, 0, 1276);
+    			add_location(textarea, file, 64, 0, 2318);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -588,6 +609,31 @@ var app = (function () {
     	return block;
     }
 
+    const BUTTON_X = 0;
+    const BUTTON_SQUARE = 2;
+    const BUTTON_TRIANGLE = 2;
+    const BUTTON_CIRCLE = 3;
+    const BUTTON_LEFT_TRIGGER_1 = 4;
+    const BUTTON_RIGHT_TRIGGER_1 = 5;
+    const BUTTON_LEFT_TRIGGER_2 = 6;
+    const BUTTON_RIGHT_TRIGGER_2 = 7;
+    const BUTTON_SELECT = 8;
+    const BUTTON_START = 9;
+    const BUTTON_LEFT_STICK = 10;
+    const BUTTON_RIGHT_STICK = 11;
+    const BUTTON_ARROW_UP = 12;
+    const BUTTON_ARROW_DOWN = 13;
+    const BUTTON_ARROW_LEFT = 14;
+    const BUTTON_ARROW_RIGHT = 15;
+
+    // MOUSE KEY CODES
+    const BUTTON_1 = 1024;
+
+    const BUTTON_3 = 4096;
+
+    //KEYBOARD KEY CODES
+    const BUTTON_SPACE = 32;
+
     function instance($$self, $$props, $$invalidate) {
     	let { $$slots: slots = {}, $$scope } = $$props;
     	validate_slots("App", slots, []);
@@ -607,15 +653,27 @@ var app = (function () {
     	const GEM = new GamepadEventManager(MOUSE_POSITION_SYNC, MOUSE_BUTTON_SYNC, TYPING_SYNC);
 
     	onMount(() => {
+    		GEM.setButtonEventListener(BUTTON_X, 0, time => {
+    			return { keyboard: [BUTTON_SPACE, -BUTTON_SPACE] };
+    		});
+
+    		GEM.setButtonEventListener(BUTTON_SELECT, 0, time => {
+    			return { mouse: [BUTTON_1, -BUTTON_1] };
+    		});
+
+    		GEM.setButtonEventListener(BUTTON_START, 0, time => {
+    			return { mouse: [BUTTON_3, -BUTTON_3] };
+    		});
+
     		let rightClickPressed = false;
 
-    		GEM.setButtonEventListener(11, 1000, time => {
+    		GEM.setButtonEventListener(BUTTON_RIGHT_STICK, 200, time => {
     			if (rightClickPressed) {
     				rightClickPressed = !rightClickPressed;
-    				return { mouse: -MouseButtonSynchronizer.BUTTON_3 }; //RELEASE BUTTON
+    				return { mouse: [-BUTTON_3] }; //RELEASE BUTTON
     			} else {
     				rightClickPressed = !rightClickPressed;
-    				return { mouse: MouseButtonSynchronizer.BUTTON_3 }; //PRESS BUTTON
+    				return { mouse: [BUTTON_3] }; //PRESS BUTTON
     			}
     		});
 
@@ -631,9 +689,29 @@ var app = (function () {
     	$$self.$capture_state = () => ({
     		onMount,
     		GamepadEventManager,
+    		GamepadButtonManager,
     		MouseButtonSynchronizer,
     		MousePositionSynchronizer,
     		TypingSynchronizer,
+    		BUTTON_X,
+    		BUTTON_SQUARE,
+    		BUTTON_TRIANGLE,
+    		BUTTON_CIRCLE,
+    		BUTTON_LEFT_TRIGGER_1,
+    		BUTTON_RIGHT_TRIGGER_1,
+    		BUTTON_LEFT_TRIGGER_2,
+    		BUTTON_RIGHT_TRIGGER_2,
+    		BUTTON_SELECT,
+    		BUTTON_START,
+    		BUTTON_LEFT_STICK,
+    		BUTTON_RIGHT_STICK,
+    		BUTTON_ARROW_UP,
+    		BUTTON_ARROW_DOWN,
+    		BUTTON_ARROW_LEFT,
+    		BUTTON_ARROW_RIGHT,
+    		BUTTON_1,
+    		BUTTON_3,
+    		BUTTON_SPACE,
     		gamepad,
     		gamepadConnected,
     		gamepadDisconnected,

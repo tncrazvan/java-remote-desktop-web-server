@@ -46,11 +46,23 @@ export default class GamepadEventManager{
     public setButtonEventListener(code:number,delay:number,callback:Function):void{
         const manager = new GamepadButtonManager(code,delay,(gbm:GamepadButtonManager,age:number)=>{
             const result = callback(age);
-            if(result.mouse){
-                this.mbs.send(result.mouse);
+            if(result.mouse && result.mouse.length && result.mouse.length > 0){
+                result.mouse.forEach((c,i)=>{
+                    if(i === 0)
+                        this.mbs.send(c);
+                    else {
+                        setTimeout(()=>this.mbs.send(c),i*10);
+                    }
+                });
             }
-            if(result.keyboard){
-                this.mbs.send(result.keyboard);
+            if(result.keyboard && result.keyboard.length && result.keyboard.length > 0){
+                result.keyboard.forEach((c,i)=>{
+                    if(i === 0)
+                        this.ts.send(c);
+                    else {
+                        setTimeout(()=>this.ts.send(c),i*10);
+                    }
+                });
             }
         });
         this.gamepadButtons.set(code,manager);
@@ -134,13 +146,13 @@ export default class GamepadEventManager{
 
 
     public sendButtons(gamepad:Gamepad){
-        /*
+        
         gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
             if(btn.pressed){
                 console.log("Button",i,"is pressed");
             }
         })
-        */
+        
 
         gamepad.buttons.forEach((btn:GamepadButton,i:number)=>{
             if(this.gamepadButtons.has(i)){
@@ -164,7 +176,7 @@ export default class GamepadEventManager{
 
         let gamepads:Array<Gamepad> = navigator.getGamepads()
         if(gamepads[gamepad.index])
-            setTimeout(()=>this.loop(gamepads[gamepad.index]),10);
+            setTimeout(()=>this.loop(gamepads[gamepad.index]),0);
     }
 
     private connected($this:GamepadEventManager,e:GamepadEvent):void{

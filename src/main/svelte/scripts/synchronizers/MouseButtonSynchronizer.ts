@@ -1,6 +1,4 @@
 export default class MouseButtonSynchronizer{
-    public static BUTTON_1 = 1024;
-    public static BUTTON_3 = 4096;
     private ws:WebSocket;
     constructor(){
         this.manageWebSocket();
