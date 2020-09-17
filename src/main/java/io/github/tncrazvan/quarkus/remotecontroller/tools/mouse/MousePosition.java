@@ -11,11 +11,11 @@ import io.github.tncrazvan.quarkus.remotecontroller.tools.MyRobot;
 @Singleton
 public class MousePosition {
     public static final long PRECISION = 10;
+    public MousePosition() {}
     @Inject
     MyRobot robot;
     @Inject
     MouseButton mouseButton;
-    private MousePosition() {}
     static {
         System.setProperty("java.awt.headless", "false");
     }

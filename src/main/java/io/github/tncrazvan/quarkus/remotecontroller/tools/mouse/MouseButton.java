@@ -12,7 +12,7 @@ import io.github.tncrazvan.quarkus.remotecontroller.tools.MyRobot;
 @Singleton
 public class MouseButton {
     public static final long PRECISION = 10;
-    private MouseButton() {}
+    public MouseButton() {}
 
     @Inject
     MyRobot robot;

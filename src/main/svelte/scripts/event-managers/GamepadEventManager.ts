@@ -2,27 +2,30 @@ import GamepadButtonManager from "../gamepad-button-tools/GamepadButtonManager";
 import type MouseButtonSynchronizer from "../synchronizers/MouseButtonSynchronizer";
 import type MousePositionSynchronizer from "../synchronizers/MousePositionSynchronizer";
 import type TypingSynchronizer from "../synchronizers/TypingSynchronizer";
+
+
+// GAMEPAD KEY CODES
+import {
+	GAMEPAD_X,
+    GAMEPAD_SQUARE,
+    GAMEPAD_TRIANGLE,
+    GAMEPAD_CIRCLE,
+    GAMEPAD_LEFT_TRIGGER_1,
+    GAMEPAD_RIGHT_TRIGGER_1,
+    GAMEPAD_LEFT_TRIGGER_2,
+    GAMEPAD_RIGHT_TRIGGER_2,
+    GAMEPAD_SELECT,
+    GAMEPAD_START,
+    GAMEPAD_LEFT_STICK,
+    GAMEPAD_RIGHT_STICK,
+    GAMEPAD_ARROW_UP,
+    GAMEPAD_ARROW_DOWN,
+    GAMEPAD_ARROW_LEFT,
+    GAMEPAD_ARROW_RIGHT
+} from '../gamepad-button-tools/GamepadCodes.js';
+
 export default class GamepadEventManager{
     
-    // GAMEPAD KEY CODES
-    private BUTTON_X = 0;
-    private BUTTON_SQUARE = 2;
-    private BUTTON_TRIANGLE = 2;
-    private BUTTON_CIRCLE = 3;
-    private BUTTON_LEFT_TRIGGER_1 = 4;
-    private BUTTON_RIGHT_TRIGGER_1 = 5;
-    private BUTTON_LEFT_TRIGGER_2 = 6;
-    private BUTTON_RIGHT_TRIGGER_2 = 7;
-    private BUTTON_SELECT = 8;
-    private BUTTON_START = 9;
-    private BUTTON_LEFT_STICK = 10;
-    private BUTTON_RIGHT_STICK = 11;
-    private BUTTON_ARROW_UP = 12;
-    private BUTTON_ARROW_DOWN = 13;
-    private BUTTON_ARROW_LEFT = 14;
-    private BUTTON_ARROW_RIGHT = 15;
-
-    private interval;
     private cps:MousePositionSynchronizer;
     private mbs:MouseButtonSynchronizer;
     private ts:TypingSynchronizer;
@@ -47,12 +50,19 @@ export default class GamepadEventManager{
     private deltaTLeftStick:number = 0;
     private release:number = 0;
     private gamepadButtons:Map<number,GamepadButtonManager> = new Map<number,GamepadButtonManager>();
-
+    private running:boolean = true;
 
     constructor(cps:MousePositionSynchronizer,mbs:MouseButtonSynchronizer,ts:TypingSynchronizer){
         this.cps=cps;
         this.ts=ts;
         this.mbs=mbs;
+    }
+
+    public close():void{
+        this.running = false;
+        this.cps.close();
+        this.mbs.close();
+        this.ts.close();
     }
 
     /**
@@ -69,7 +79,7 @@ export default class GamepadEventManager{
                 result.mouse.forEach((c,i)=>{
                     if(i === 0)
                         this.mbs.send(c);
-                    else {
+                    else if(this.running){
                         setTimeout(()=>this.mbs.send(c),i*10);
                     }
                 });
@@ -78,7 +88,7 @@ export default class GamepadEventManager{
                 result.keyboard.forEach((c,i)=>{
                     if(i === 0)
                         this.ts.send(c);
-                    else {
+                    else if(this.running){
                         setTimeout(()=>this.ts.send(c),i*10);
                     }
                 });
@@ -194,14 +204,15 @@ export default class GamepadEventManager{
         this.sendButtons(gamepad);
 
         let gamepads:Array<Gamepad> = navigator.getGamepads()
-        if(gamepads[gamepad.index])
+        if(gamepads[gamepad.index] && this.running)
             setTimeout(()=>this.loop(gamepads[gamepad.index]),0);
     }
 
     private connected($this:GamepadEventManager,e:GamepadEvent):void{
         $this.setGamepad(e.gamepad);
         console.log("Gamepad connected", e.gamepad);
-        setTimeout(()=>this.loop(e.gamepad),10);
+        if(this.running)
+            setTimeout(()=>this.loop(e.gamepad),10);
     }
 
     public watch():void{

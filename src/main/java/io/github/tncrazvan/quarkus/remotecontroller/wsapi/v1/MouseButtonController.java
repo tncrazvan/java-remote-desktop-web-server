@@ -16,6 +16,7 @@ import javax.websocket.server.ServerEndpoint;
 
 import io.github.tncrazvan.quarkus.remotecontroller.tools.Loop;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MouseButton;
+import java.io.IOException;
 
 @ServerEndpoint("/mouse-button")
 @ApplicationScoped
@@ -26,10 +27,10 @@ public class MouseButtonController {
     @Inject
     MouseButton mouseButton;
 
-    Map<String, Session> sessions = new ConcurrentHashMap<>();
+    //private Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
-    public void onOpen(Session session) {
+    public void onOpen(Session session) throws InterruptedException, IOException, AWTException {
         loop.run();
     }
 

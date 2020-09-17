@@ -5,7 +5,7 @@ export default class TypingSynchronizer{
     }
 
     private manageWebSocket():void{
-        this.ws = new WebSocket("ws://192.168.1.236/typing");
+        this.ws = new WebSocket("ws://127.0.0.1/typing");
         this.ws.onopen=function(){
             console.log("Typing Synchronizer Connected");
         };
@@ -16,5 +16,8 @@ export default class TypingSynchronizer{
     
     public send(keycode:number):void{
         this.ws.send(''+keycode);
+    }
+    public close():void{
+        this.ws.close();
     }
 }

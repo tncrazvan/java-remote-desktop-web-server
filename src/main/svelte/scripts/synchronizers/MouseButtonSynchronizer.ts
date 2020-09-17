@@ -5,7 +5,7 @@ export default class MouseButtonSynchronizer{
     }
 
     private manageWebSocket():void{
-        this.ws = new WebSocket("ws://razshare.zapto.org/mouse-button");
+        this.ws = new WebSocket("ws://127.0.0.1/mouse-button");
         this.ws.onopen=function(){
             console.log("Mouse Button Synchronizer Connected");
         };
@@ -17,5 +17,8 @@ export default class MouseButtonSynchronizer{
     private lastSentDirection:number;
     public send(btnCode:number):void{
         this.ws.send(""+btnCode);
+    }
+    public close():void{
+        this.ws.close();
     }
 }

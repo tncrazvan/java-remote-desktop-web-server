@@ -11,7 +11,7 @@ import io.github.tncrazvan.quarkus.remotecontroller.tools.MyRobot;
 @Singleton
 public class Keyboard {
     public static final long PRECISION = 10;
-    private Keyboard() {}
+    public Keyboard() {}
     @Inject
     MyRobot robot;
     public static final int keyQ = 81;

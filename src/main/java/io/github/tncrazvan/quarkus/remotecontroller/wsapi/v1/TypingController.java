@@ -1,13 +1,8 @@
 package io.github.tncrazvan.quarkus.remotecontroller.wsapi.v1;
 
 
-import java.awt.AWTException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.security.auth.kerberos.KeyTab;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
 import javax.websocket.OnMessage;
@@ -17,6 +12,8 @@ import javax.websocket.server.ServerEndpoint;
 
 import io.github.tncrazvan.quarkus.remotecontroller.tools.Loop;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.Keyboard;
+import java.awt.AWTException;
+import java.io.IOException;
 
 @ServerEndpoint("/typing")
 @ApplicationScoped
@@ -27,10 +24,10 @@ public class TypingController {
     Keyboard keyboard;
 
 
-    Map<String, Session> sessions = new ConcurrentHashMap<>();
+    //private Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     @OnOpen
-    public void onOpen(Session session) {
+    public void onOpen(Session session) throws InterruptedException, IOException, AWTException {
         loop.run();
     }
 
