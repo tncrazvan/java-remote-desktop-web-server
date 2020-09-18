@@ -1,9 +1,12 @@
 <script lang="ts">
-import { Router,Route } from 'svelte-routing';
-import InputInterface from './components/InputInterface.svelte';
+import { Route,Router } from 'svelte-routing';
+import ConsumerPage from './pages/ConsumerPage.svelte';
+import ProducerPage from './pages/ProducerPage.svelte';
+
 </script>
+
 <Router>
-	<Route path="/" component={InputInterface} />
-	<Route path="/input" component={InputInterface} />
-	<Route path="/screen" component={InputInterface} />
+	<Route path="/producer" component={ProducerPage} />
+	<Route path="/consumer" component={ConsumerPage} />
 </Router>
+<!-- <GamepadInputInterface /> -->

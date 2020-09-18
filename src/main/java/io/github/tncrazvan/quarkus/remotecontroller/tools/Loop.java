@@ -6,11 +6,6 @@ import javax.inject.Singleton;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.Keyboard;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MouseButton;
 import io.github.tncrazvan.quarkus.remotecontroller.tools.mouse.MousePosition;
-import io.github.tncrazvan.quarkus.remotecontroller.tools.screen.ScreenRecorder;
-import java.awt.AWTException;
-import java.io.IOException;
-import java.util.LinkedList;
-import javax.websocket.Session;
 
 @Singleton
 public class Loop {
@@ -27,32 +22,15 @@ public class Loop {
 
     @Inject
     MousePosition mousePosition;
-    
-    @Inject 
-    ScreenRecorder recorder;
 
     private long age = 0;
     private long start = 0;
     
-    public LinkedList<Session> recsessions = new LinkedList<Session>();
     
-    public void run() throws InterruptedException, IOException, AWTException {
+    public void run() {
         if(watching)
             return;
         watching = true;
-        
-        /*
-        new Thread(()->{
-            try {
-                recorder.setArea(0, 0, 1920, 1080);
-                while (watching) {
-                    recorder.capture();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
-        */
         
         new Thread(()->{
             try {
