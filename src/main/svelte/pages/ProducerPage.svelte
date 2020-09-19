@@ -34,7 +34,7 @@ async function produce(){
 
     let server = new RTCPeerConnection();
     server.onicecandidate = e => {
-      if(e.candidate && e.candidate.candidate !== ""){
+      if(e.candidate && e.candidate.candidate !== "" && e.candidate.candidate.startsWith("candidate:0 1")){
         console.log("candidate:",e.candidate);
         rtcserver.postServerCandidate(e.candidate);
       }

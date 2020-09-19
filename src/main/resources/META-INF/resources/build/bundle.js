@@ -2304,6 +2304,7 @@ var app = (function () {
     	let button0;
     	let t2;
     	let button1;
+    	let br;
     	let t4;
     	let video;
     	let current;
@@ -2320,12 +2321,14 @@ var app = (function () {
     			t2 = space();
     			button1 = element("button");
     			button1.textContent = "Reset";
+    			br = element("br");
     			t4 = space();
     			video = element("video");
-    			add_location(button0, file, 49, 0, 1500);
-    			add_location(button1, file, 50, 0, 1545);
+    			add_location(button0, file, 49, 0, 1553);
+    			add_location(button1, file, 50, 0, 1598);
+    			add_location(br, file, 50, 60, 1658);
     			video.autoplay = true;
-    			add_location(video, file, 51, 0, 1607);
+    			add_location(video, file, 51, 0, 1666);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -2336,6 +2339,7 @@ var app = (function () {
     			insert_dev(target, button0, anchor);
     			insert_dev(target, t2, anchor);
     			insert_dev(target, button1, anchor);
+    			insert_dev(target, br, anchor);
     			insert_dev(target, t4, anchor);
     			insert_dev(target, video, anchor);
     			/*video_binding*/ ctx[3](video);
@@ -2366,6 +2370,7 @@ var app = (function () {
     			if (detaching) detach_dev(button0);
     			if (detaching) detach_dev(t2);
     			if (detaching) detach_dev(button1);
+    			if (detaching) detach_dev(br);
     			if (detaching) detach_dev(t4);
     			if (detaching) detach_dev(video);
     			/*video_binding*/ ctx[3](null);
@@ -2397,7 +2402,7 @@ var app = (function () {
     		let client = new RTCPeerConnection();
 
     		client.onicecandidate = async e => {
-    			if (e.candidate && e.candidate.candidate !== "") {
+    			if (e.candidate && e.candidate.candidate !== "" && e.candidate.candidate.startsWith("candidate:0 1")) {
     				console.log("candidate:", e.candidate);
     				await rtcserver.postClientCandidate(e.candidate);
     			}
@@ -2498,8 +2503,8 @@ var app = (function () {
     			t1 = space();
     			button1 = element("button");
     			button1.textContent = "Reset";
-    			add_location(button0, file$1, 72, 0, 1774);
-    			add_location(button1, file$1, 73, 0, 1819);
+    			add_location(button0, file$1, 72, 0, 1827);
+    			add_location(button1, file$1, 73, 0, 1872);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -2576,7 +2581,7 @@ var app = (function () {
     		let server = new RTCPeerConnection();
 
     		server.onicecandidate = e => {
-    			if (e.candidate && e.candidate.candidate !== "") {
+    			if (e.candidate && e.candidate.candidate !== "" && e.candidate.candidate.startsWith("candidate:0 1")) {
     				console.log("candidate:", e.candidate);
     				rtcserver.postServerCandidate(e.candidate);
     			}

@@ -11,7 +11,7 @@ async function consume(){
 
     let client = new RTCPeerConnection();
     client.onicecandidate = async e => {
-      if(e.candidate && e.candidate.candidate !== ""){
+      if(e.candidate && e.candidate.candidate !== "" && e.candidate.candidate.startsWith("candidate:0 1")){
         console.log("candidate:",e.candidate);
         await rtcserver.postClientCandidate(e.candidate);
       }
@@ -48,5 +48,5 @@ async function consume(){
 </script>
 <GamepadInputInterface />
 <button on:click={consume}>Consume</button>
-<button on:click={()=>fetch("/stream/reset")}>Reset</button>
+<button on:click={()=>fetch("/stream/reset")}>Reset</button><br />
 <video bind:this={player} autoplay></video>
